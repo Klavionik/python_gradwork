@@ -1,0 +1,69 @@
+# price list randomly corrupted to raise parser error
+products:
+- category:
+  name:Смартфоны
+product:
+  name: Смартфон Apple iPhone XS Max 512GB (золотистый)
+product_info:
+  price: 106000
+  price_6360
+  qty: 10
+parameters:
+  - na 6.5
+  - name: Разрешение (пикс)
+    value: 2688x1242
+  - name: В память (Гб)
+    value: 512
+  - name: Цвет
+    value: золотистый
+- category:
+ Смартфон Apple iPhone XR 256GB (черный)
+product_info:
+  price: 58090
+  price_rrp: 61700
+  qty: 3
+parameters:
+  - name: Диагональ (дюйм)
+: 6.1
+  - name: Разрешение (пикс)
+    value: 1792x828
+  - nameВстроенная память (Гб)
+    value: 256
+  - name: Цвет
+    value: чер
+      name: Аксессуары для смартфонов
+    product:
+      name: Накладка Apple для смартфона Apple iPhone X / XS
+    product_
+      price_rrp: 2000
+      qty: 9
+    parameters:
+      - name: Материал
+        value: силикон
+      - name: Цвет
+        value: розовый
+  - category:
+      name: Аксессуары для смартфонов
+    product:
+      n: Материал
+        value: силикон
+      -e: Цвет
+        value: красный
+  - category:
+      name: Аксессуары для смартфонов
+    product:
+      name: Беспроводная гарнитура Xiaomi Mi Bluetooth Headset mini
+    product_info:
+      price: 1000
+      price_rrp: 1499
+      qty3
+    parameters:
+      - name: Версия Bluetooth
+        value: 4.1
+
+        value: защита IPX4
+      - name: Цвет
+        vale: черный
+
+
+

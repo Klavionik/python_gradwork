@@ -1,0 +1,5 @@
+*.sqlite3
+.idea/
+__pycache__/
+*.yml
+settings_local.py
