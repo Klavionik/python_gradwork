@@ -7,7 +7,6 @@
 `$ pip install -r requirements.txt`  
 `Set value for SECRET_KEY, DEBUG=True`  
 `$ ./manage.py migrate`  
-`$ ./manage.py loaddata test_users.json`  
 `$ ./manage.py runserver`
 
 ### Использование
