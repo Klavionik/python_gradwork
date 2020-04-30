@@ -1,5 +1,6 @@
+from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
+from django.contrib.auth.models import PermissionsMixin
 from django.db import models
-from django.contrib.auth.models import BaseUserManager, AbstractBaseUser, PermissionsMixin
 
 
 class UserManager(BaseUserManager):
@@ -8,13 +9,6 @@ class UserManager(BaseUserManager):
     def create_user(self, email, password, **extra_fields):
         if not email:
             raise ValueError('The e-mail must be set')
-        if extra_fields.get('is_seller') and extra_fields.get('is_buyer'):
-            raise ValueError('User cannot be both a seller and a buyer')
-        if extra_fields.get('is_seller') and not extra_fields.get('shop'):
-            raise ValueError('Seller must have a related shop ID')
-        if not extra_fields.get('is_seller') and not extra_fields.get('is_buyer')\
-                and not extra_fields.get('is_staff'):
-            raise ValueError('User muse be either a staff, a seller or a buyer')
 
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
@@ -35,20 +29,21 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    name = models.CharField(
-        max_length=100,
+    SUPPLIER = 'supplier'
+    BUYER = 'buyer'
+    USER_KIND = (
+        (SUPPLIER, 'Supplier'),
+        (BUYER, 'Buyer'),
     )
-    surname = models.CharField(
-        max_length=100,
-    )
-    patronymic = models.CharField(
+
+    full_name = models.CharField(
         max_length=100,
     )
     email = models.EmailField(
         unique=True,
     )
     password = models.CharField(
-        max_length=255,
+        max_length=100,
     )
     company = models.CharField(
         max_length=100,
@@ -56,32 +51,30 @@ class User(AbstractBaseUser, PermissionsMixin):
     position = models.CharField(
         max_length=100,
     )
-    is_seller = models.BooleanField(
-        default=False,
-    )
-    shop = models.ForeignKey(
-        'Shop',
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-    )
-    is_buyer = models.BooleanField(
-        default=False,
-    )
-    is_staff = models.BooleanField(
-        default=False,
+    kind = models.CharField(
+        max_length=10,
+        choices=USER_KIND,
+        blank=False,
     )
     is_active = models.BooleanField(
         default=True,
     )
 
     USERNAME_FIELD = EMAIL_FIELD = 'email'
-    REQUIRED_FIELDS = []
+    REQUIRED_FIELDS = ['full_name', 'company', 'position', 'kind']
 
     objects = UserManager()
 
     def __str__(self):
-        return f'{self.surname} {self.name} {self.company} {self.position}'
+        return f'{self.full_name}'
+
+    @property
+    def is_supplier(self):
+        return True if self.kind == self.SUPPLIER else False
+
+    @property
+    def is_buyer(self):
+        return True if self.kind == self.BUYER else False
 
     class Meta:
         db_table = 'users'
@@ -89,22 +82,23 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class Shop(models.Model):
     name = models.CharField(
-        unique=True,
-        max_length=255,
+        max_length=100,
     )
     url = models.URLField(
         unique=True,
         max_length=50,
     )
-    status = models.BooleanField(
-        default=True,
+    active = models.BooleanField(
+        default=False,
+    )
+    manager = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='shop',
     )
 
     def __str__(self):
-        return f'{self.name} {"Open" if self.status else "Closed"}'
-
-    def update_price_list(self, data):
-        pass
+        return f'{self.name}'
 
     class Meta:
         db_table = 'shops'
@@ -112,7 +106,7 @@ class Shop(models.Model):
 
 class Category(models.Model):
     name = models.CharField(
-        max_length=255,
+        max_length=100,
     )
     shops = models.ManyToManyField(
         Shop,
@@ -128,7 +122,7 @@ class Category(models.Model):
 
 class Product(models.Model):
     name = models.CharField(
-        max_length=255,
+        max_length=100,
     )
     category = models.ForeignKey(
         Category,
@@ -168,7 +162,7 @@ class ProductInfo(models.Model):
 class Parameter(models.Model):
     name = models.CharField(
         unique=True,
-        max_length=255,
+        max_length=100,
     )
 
     def __str__(self):
@@ -190,7 +184,7 @@ class ProductParameter(models.Model):
         related_name='parameters',
     )
     value = models.CharField(
-        max_length=255,
+        max_length=100,
     )
 
     def __str__(self):
@@ -288,7 +282,7 @@ class Contact(models.Model):
     )
 
     def __str__(self):
-        return f'{self.type} {self.user.id}'
+        return f'{self.type} {self.value}'
 
     class Meta:
         db_table = 'contacts'

@@ -1,12 +1,9 @@
 products:
-  - category:
-      name: Смартфоны
-    product:
-      name: Смартфон Apple iPhone XS Max 512GB (золотистый)
-    product_info:
-      price: 110000
-      price_rrp: 116990
-      qty: 14
+  - category: Смартфоны
+    name: Смартфон Apple iPhone XS Max 512GB (золотистый)
+    price: 110000
+    price_rrp: 116990
+    qty: 14
     parameters:
       - name: Диагональ (дюйм)
         value: 6.5
@@ -16,14 +13,11 @@ products:
         value: 512
       - name: Цвет
         value: золотистый
-  - category:
-      name: Смартфоны
-    product:
-      name: Смартфон Apple iPhone XR 256GB (черный)
-    product_info:
-      price: 65000
-      price_rrp: 69990
-      qty: 12
+  - category: Смартфоны
+    name: Смартфон Apple iPhone XR 256GB (черный)
+    price: 65000
+    price_rrp: 69990
+    qty: 12
     parameters:
       - name: Диагональ (дюйм)
         value: 6.1
@@ -33,40 +27,31 @@ products:
         value: 256
       - name: Цвет
         value: черный
-  - category:
-      name: Аксессуары для смартфонов
-    product:
-      name: Накладка Apple для смартфона Apple iPhone X / XS
-    product_info:
-      price: 1800
-      price_rrp: 2450
-      qty: 27
+  - category: Аксессуары для смартфонов
+    name: Накладка Apple для смартфона Apple iPhone X / XS
+    price: 1800
+    price_rrp: 2450
+    qty: 27
     parameters:
       - name: Материал
         value: силикон
       - name: Цвет
         value: розовый
-  - category:
-      name: Аксессуары для смартфонов
-    product:
-      name: Накладка Apple для смартфона Apple iPhone 7/8
-    product_info:
-      price: 1780
-      price_rrp: 2780
-      qty: 49
+  - category: Аксессуары для смартфонов
+    name: Накладка Apple для смартфона Apple iPhone 7/8
+    price: 1780
+    price_rrp: 2780
+    qty: 49
     parameters:
       - name: Материал
         value: силикон
       - name: Цвет
         value: красный
-  - category:
-      name: Аксессуары для смартфонов
-    product:
-      name: Беспроводная гарнитура Xiaomi Mi Bluetooth Headset mini
-    product_info:
-      price: 999
-      price_rrp: 1390
-      qty: 8
+  - category: Аксессуары для смартфонов
+    name: Беспроводная гарнитура Xiaomi Mi Bluetooth Headset mini
+    price: 999
+    price_rrp: 1390
+    qty: 8
     parameters:
       - name: Версия Bluetooth
         value: 4.1

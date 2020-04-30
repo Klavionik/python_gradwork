@@ -14,6 +14,8 @@ import os
 from datetime import timedelta
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+from django.urls import reverse_lazy
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Quick-start development settings - unsuitable for production
@@ -38,8 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'djoser',
 
-    'ecommerce'
+    'ecommerce',
 ]
 
 MIDDLEWARE = [
@@ -128,13 +131,28 @@ AUTH_USER_MODEL = 'ecommerce.User'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
     ]
 }
 
 # JWT settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
+    'AUTH_HEADER_TYPES': ('JWT',),
+}
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Djoser settings
+DJOSER = {
+    'SEND_ACTIVATION_EMAIL': False,
+    'SEND_CONFIRMATION_EMAIL': True,
+    'TOKEN_MODEL': None,
+    'PASSWORD_RESET_CONFIRM_URL': 'password-reset/{uid}/{token}/',
+    'USERNAME_RESET_CONFIRM_URL': 'username-reset/{uid}/{token}/',
 }
 
 try:
@@ -150,3 +168,4 @@ if DEBUG:
         'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
         'REFRESH_TOKEN_LIFETIME': timedelta(minutes=30),
     }
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

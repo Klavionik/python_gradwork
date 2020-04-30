@@ -20,7 +20,9 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('ecommerce.urls'))
+    path('api/', include('ecommerce.urls')),
+    path('', include('djoser.urls.base')),
+    path('', include('djoser.urls.jwt')),
 ]
 
 if settings.DEBUG:

@@ -1,46 +1,56 @@
+from django.db.models import Q
 from rest_framework import serializers
 
-from ecommerce.models import Category, ProductParameter, Parameter, Product, ProductInfo
-from django.db.models import Q
+from ecommerce.models import Category, ProductParameter, Parameter, Product, ProductInfo, Shop
 
 
-class CategorySerializer(serializers.ModelSerializer):
+class ParameterSerializer(serializers.ModelSerializer):
+    parameter = serializers.StringRelatedField()
+
     class Meta:
-        model = Category
-        fields = ('name',)
+        model = ProductParameter
+        exclude = ('product_info',)
+
+
+class ProductInfoSerializer(serializers.ModelSerializer):
+    parameters = ParameterSerializer(many=True)
+
+    class Meta:
+        model = ProductInfo
+        fields = ('id', 'price_rrp', 'price', 'qty', 'shop', 'parameters',)
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    info = ProductInfoSerializer(many=True)
+
+    class Meta:
+        model = Product
+        fields = ('id', 'name', 'info')
 
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ('name',)
+        fields = '__all__'
 
 
-class ProductInfoSerializer(serializers.ModelSerializer):
+class ShopSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ProductInfo
-        fields = ('price', 'price_rrp', 'qty')
-
-
-class ParameterSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Parameter
-        fields = ('name',)
-
-
-class ProductParameterSerializer(serializers.ModelSerializer):
-    name = serializers.CharField()
-
-    class Meta:
-        model = ProductParameter
-        fields = ('name', 'value',)
+        model = Shop
+        exclude = ('manager',)
 
 
 class PriceListItemSerializer(serializers.Serializer):
-    category = CategorySerializer()
-    product = ProductSerializer()
-    product_info = ProductInfoSerializer()
-    parameters = ProductParameterSerializer(many=True)
+    class ParameterSerializer(serializers.Serializer):
+        name = serializers.CharField(max_length=100)
+        value = serializers.CharField(max_length=100)
+
+    category = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=100)
+    price = serializers.IntegerField()
+    price_rrp = serializers.IntegerField()
+    qty = serializers.IntegerField()
+    parameters = ParameterSerializer(many=True)
 
 
 class PriceListSerializer(serializers.Serializer):
@@ -64,33 +74,59 @@ class PriceListSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         self.clean_before()
-        products = validated_data.get('products')
 
-        for product in products:
-            category_obj, _ = Category.objects.get_or_create(
-                name=product['category']['name'],
-            )
-            product_obj, _ = Product.objects.get_or_create(
-                name=product['product']['name'],
-                category=category_obj,
-            )
-            product_info_obj = ProductInfo.objects.create(
-                product=product_obj,
-                shop=self.shop,
-                price=product['product_info']['price'],
-                price_rrp=product['product_info']['price_rrp'],
-                qty=product['product_info']['qty'],
-            )
-            for parameter in product['parameters']:
-                parameter_obj, _ = Parameter.objects.get_or_create(name=parameter['name'])
-                ProductParameter(
-                    parameter=parameter_obj,
-                    product_info=product_info_obj,
-                    value=parameter['value'],
-                ).save()
+        for product in validated_data['products']:
+            category, name, price, price_rrp, qty = self.get_product_data(product)
+            parameters = product['parameters']
 
+            self.create_item(category, name, price, price_rrp, qty, parameters)
             self.updated += 1
 
         self.clean_after()
 
         return self.updated
+
+    def create_item(self, category, name, price, price_rrp, qty, parameters):
+        category = self.create_category(category)
+        product, product_info = self.create_product(name, category, price, price_rrp, qty)
+        self.create_parameters(product_info, parameters)
+
+    def create_category(self, name):
+        category_obj, _ = Category.objects.get_or_create(name=name)
+        category_obj.shops.add(self.shop)
+        return category_obj
+
+    def create_product(self, name, category, price, price_rrp, qty):
+        product, _ = Product.objects.get_or_create(name=name, category=category)
+        product_info = self.create_product_info(product, price, price_rrp, qty)
+        return product, product_info
+
+    def create_product_info(self, product, price, price_rrp, qty):
+        product_info = ProductInfo.objects.create(
+            product=product,
+            shop=self.shop,
+            price=price,
+            price_rrp=price_rrp,
+            qty=qty,
+        )
+        return product_info
+
+    def create_parameters(self, product_info, parameters):
+        for parameter in parameters:
+            name, value = self.get_parameter_data(parameter)
+            parameter, _ = Parameter.objects.get_or_create(name=name)
+            ProductParameter.objects.create(
+                parameter=parameter, product_info=product_info, value=value,
+            )
+
+    @staticmethod
+    def get_product_data(product):
+        return product['category'], \
+                product['name'], \
+                product['price'], \
+                product['price_rrp'], \
+                product['qty']
+
+    @staticmethod
+    def get_parameter_data(parameter):
+        return parameter['name'], parameter['value']

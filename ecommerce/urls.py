@@ -1,9 +1,13 @@
 from django.urls import path
-from .views import PriceListUpdateView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework.routers import DefaultRouter
+
+from .views import PriceListUpdateView, ShopView, ProductListView, ProductDetailView
+
+router = DefaultRouter()
+router.register('shop', ShopView, basename='shop')
 
 urlpatterns = [
-    path('auth/token/', TokenObtainPairView.as_view(), name='token-obtain'),
-    path('auth/token-refresh/', TokenRefreshView.as_view(), name='token-refresh'),
-    path('shop/price-list/', PriceListUpdateView.as_view(), name='pricelist-update')
-]
+    path('shop/price-list/', PriceListUpdateView.as_view(), name='pricelist-update'),
+    path('products/', ProductListView.as_view(), name='products-list'),
+    path('products/<int:pk>/', ProductDetailView.as_view(), name='products-detail'),
+] + router.urls

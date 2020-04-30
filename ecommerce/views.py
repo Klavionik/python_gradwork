@@ -3,16 +3,40 @@ from tempfile import TemporaryFile
 import requests
 import yaml
 from requests.exceptions import RequestException
-from rest_framework import permissions
+from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.parsers import FileUploadParser, JSONParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 from yaml.error import YAMLError
 
 from .exceptions import ResourceUnavailableError, YAMLParserError, URLError, InvalidDataError
 from .forms import PriceListURLForm
-from .permissions import SellerPermission
-from .serializers import PriceListSerializer
+from .models import Shop, Product
+from .permissions import IsSellerOrReadOnly, IsShopManagerOrReadOnly
+from .serializers import (PriceListSerializer,
+                          ShopSerializer,
+                          ProductSerializer, ProductDetailSerializer)
+
+
+class ProductDetailView(RetrieveAPIView):
+    queryset = Product.objects.filter(info__shop__active=True)
+    serializer_class = ProductDetailSerializer
+
+
+class ProductListView(ListAPIView):
+    queryset = Product.objects.filter(info__shop__active=True)
+    serializer_class = ProductSerializer
+
+
+class ShopView(ModelViewSet):
+    queryset = Shop.objects.all()
+    permission_classes = [IsAuthenticated, IsSellerOrReadOnly, IsShopManagerOrReadOnly]
+    serializer_class = ShopSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(manager=self.request.user)
 
 
 class PriceListUpdateView(APIView):
@@ -20,10 +44,10 @@ class PriceListUpdateView(APIView):
         media_type = 'text/yaml'
 
     parser_classes = [JSONParser, YAMLUploadParser]
-    permission_classes = [permissions.IsAuthenticated, SellerPermission]
+    permission_classes = [IsAuthenticated, IsSellerOrReadOnly]
 
     form = PriceListURLForm
-    serializer = PriceListSerializer
+    serializer_class = PriceListSerializer
     success_message = "Price list updated: %s products"
 
     def get_url(self):
@@ -79,7 +103,7 @@ class PriceListUpdateView(APIView):
         return self.update_prices(self.get_content(file))
 
     def update_prices(self, price_list):
-        serializer = self.serializer(
+        serializer = self.serializer_class(
             data=price_list,
             shop=self.request.user.shop)
 
