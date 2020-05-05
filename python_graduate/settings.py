@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'djoser',
 
-    'ecommerce',
+    'ecommerce.apps.EcommerceConfig',
 ]
 
 MIDDLEWARE = [
@@ -165,7 +165,7 @@ if DEBUG:
     FIXTURES_DIR = os.path.join(BASE_DIR, 'ecommerce', 'fixtures')
 
     SIMPLE_JWT = {
-        'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-        'REFRESH_TOKEN_LIFETIME': timedelta(minutes=30),
+        'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
+        'REFRESH_TOKEN_LIFETIME': timedelta(hours=30),
     }
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

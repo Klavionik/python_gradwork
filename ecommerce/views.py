@@ -2,32 +2,109 @@ from tempfile import TemporaryFile
 
 import requests
 import yaml
+from django.db.models import Q
 from requests.exceptions import RequestException
-from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.generics import ListAPIView, RetrieveAPIView, GenericAPIView
 from rest_framework.parsers import FileUploadParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.reverse import reverse_lazy
+from rest_framework.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from yaml.error import YAMLError
 
 from .exceptions import ResourceUnavailableError, YAMLParserError, URLError, InvalidDataError
 from .forms import PriceListURLForm
-from .models import Shop, Product
-from .permissions import IsSellerOrReadOnly, IsShopManagerOrReadOnly
-from .serializers import (PriceListSerializer,
-                          ShopSerializer,
-                          ProductSerializer, ProductDetailSerializer)
+from .models import Shop, Product, Cart, CartItem
+from .permissions import IsSellerOrReadOnly, IsShopManagerOrReadOnly, IsBuyer, IsCartOwner, \
+    IsItemOwner
+from .serializers import PriceListSerializer, ShopSerializer, ProductListSerializer, \
+    ProductDetailSerializer, CartSerializer, CartItemSerializer
+
+
+class CartItemView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsItemOwner]
+    queryset = CartItem.objects.all()
+
+    def patch(self, request, *args, **kwargs):
+        return self.update_cart_item(request)
+
+    def delete(self, request, *args, **kwargs):
+        return self.delete_cart_item()
+
+    def update_cart_item(self, request):
+        serializer = CartItemSerializer(data=request.data, instance=self.get_object(), partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete_cart_item(self):
+        self.get_object().delete()
+        return Response(status=HTTP_204_NO_CONTENT)
+
+
+class CartView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsCartOwner]
+    queryset = Cart.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        serializer = CartSerializer(self.get_object())
+        return Response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        return self.create_item(request)
+
+    def create_item(self, request):
+        self.set_cart(request)
+        serializer = CartItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save()
+        headers = self.get_headers(request, item)
+        return Response(serializer.data, headers=headers, status=HTTP_201_CREATED)
+
+    def set_cart(self, request):
+        request.data['cart'] = self.get_object().id
+
+    def get_headers(self, request, item):
+        return {'Location': reverse_lazy('cart-item', args=[item.id], request=request)}
+
+
+class CreateCartView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsBuyer]
+    queryset = Cart.objects.all()
+    serializer_class = CartSerializer
+
+    def post(self, request, *args, **kwargs):
+        return self.create_cart(request)
+
+    def create_cart(self, request):
+        self.set_user(request)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cart = serializer.save()
+        return Response(self.get_response_data(cart),
+                        headers=self.get_headers(request, cart),
+                        status=HTTP_201_CREATED)
+
+    def set_user(self, request):
+        request.data['user'] = self.request.user.id
+
+    def get_headers(self, request, cart):
+        return {'Location': reverse_lazy('cart', args=[cart.id], request=request)}
+
+    def get_response_data(self, cart):
+        return {"cart_id": cart.id}
 
 
 class ProductDetailView(RetrieveAPIView):
-    queryset = Product.objects.filter(info__shop__active=True)
+    queryset = Product.objects.filter(Q(detail__shop__active=True), Q(detail__available=True))
     serializer_class = ProductDetailSerializer
 
 
 class ProductListView(ListAPIView):
-    queryset = Product.objects.filter(info__shop__active=True)
-    serializer_class = ProductSerializer
+    queryset = Product.objects.filter(Q(detail__shop__active=True), Q(detail__available=True))
+    serializer_class = ProductListSerializer
 
 
 class ShopView(ModelViewSet):

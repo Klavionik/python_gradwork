@@ -70,11 +70,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def is_supplier(self):
-        return True if self.kind == self.SUPPLIER else False
+        return self.kind == self.SUPPLIER
 
     @property
     def is_buyer(self):
-        return True if self.kind == self.BUYER else False
+        return self.kind == self.BUYER
 
     class Meta:
         db_table = 'users'
@@ -137,26 +137,31 @@ class Product(models.Model):
         db_table = 'products'
 
 
-class ProductInfo(models.Model):
+class ProductDetail(models.Model):
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
-        related_name='info'
+        related_name='detail'
     )
     shop = models.ForeignKey(
         Shop,
         on_delete=models.CASCADE,
-        related_name='products'
+        related_name='product_detail'
     )
+    supplier_id = models.PositiveIntegerField()
     price = models.PositiveIntegerField(verbose_name='Price')
     price_rrp = models.PositiveIntegerField(verbose_name='Recommended Retail Price')
-    qty = models.PositiveIntegerField()
+    qty = models.PositiveIntegerField(verbose_name='Quantity')
+    available = models.BooleanField()
 
     def __str__(self):
         return f'{self.product.name} {self.shop}'
 
     class Meta:
-        db_table = 'product_info'
+        db_table = 'product_details'
+        constraints = [models.UniqueConstraint(
+            fields=('supplier_id', 'shop', 'product'), name='unique_product'
+        )]
 
 
 class Parameter(models.Model):
@@ -178,8 +183,8 @@ class ProductParameter(models.Model):
         on_delete=models.CASCADE,
         related_name='product_parameters',
     )
-    product_info = models.ForeignKey(
-        ProductInfo,
+    product_detail = models.ForeignKey(
+        ProductDetail,
         on_delete=models.CASCADE,
         related_name='parameters',
     )
@@ -195,21 +200,26 @@ class ProductParameter(models.Model):
 
 
 class Order(models.Model):
+    NEW = 'new'
+    PROCESSING = 'processing'
+    SHIPPED = 'shipped'
+    DELIVERED = 'delivered'
+    CANCELLED = 'cancelled'
     STATUS_CHOICES = (
         (
-            'new', 'Order received'
+            NEW, 'Order received'
         ),
         (
-            'processing', 'Order is being processed'
+            PROCESSING, 'Order is being processed'
         ),
         (
-            'shipped', 'Order has been shipped'
+            SHIPPED, 'Order has been shipped'
         ),
         (
-            'delivered', 'Order is delivered'
+            DELIVERED, 'Order is delivered'
         ),
         (
-            'cancelled', 'Order is cancelled'
+            CANCELLED, 'Order is cancelled'
         )
     )
 
@@ -237,17 +247,12 @@ class OrderItem(models.Model):
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
-        related_name='order_items'
+        related_name='items',
     )
     product = models.ForeignKey(
-        ProductInfo,
+        ProductDetail,
         on_delete=models.CASCADE,
-        related_name='order_items'
-    )
-    shop = models.ForeignKey(
-        Shop,
-        on_delete=models.CASCADE,
-        related_name='order_items'
+        related_name='+',
     )
     qty = models.PositiveIntegerField()
 
@@ -259,12 +264,14 @@ class OrderItem(models.Model):
 
 
 class Contact(models.Model):
+    ADDRESS = 'address'
+    PHONE = 'phone'
     TYPE_CHOICES = (
         (
-            'phone', 'Phone number'
+            PHONE, 'Phone number'
         ),
         (
-            'address', 'Address'
+            ADDRESS, 'Address'
         )
     )
 
@@ -286,3 +293,42 @@ class Contact(models.Model):
 
     class Meta:
         db_table = 'contacts'
+
+
+class Cart(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='cart',
+        unique=True,
+    )
+
+    def __str__(self):
+        return f'{self.user} shopping cart'
+
+    class Meta:
+        db_table = 'carts'
+
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(
+        Cart,
+        on_delete=models.CASCADE,
+        related_name='items',
+    )
+    product = models.ForeignKey(
+        ProductDetail,
+        on_delete=models.SET_NULL,
+        related_name='+',
+        null=True,
+    )
+    qty = models.PositiveIntegerField()
+
+    def __str__(self):
+        return f'{self.product.product.name} in cart'
+
+    class Meta:
+        db_table = 'cart_products'
+        constraints = [models.UniqueConstraint(
+            fields=('cart', 'product'), name='unique_cart_item'
+        )]

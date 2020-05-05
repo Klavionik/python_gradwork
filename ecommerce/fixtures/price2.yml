@@ -1,5 +1,6 @@
 products:
   - category: Смартфоны
+    supplier_id : 8632
     name: Смартфон Apple iPhone XS Max 512GB (золотистый)
     price: 106000
     price_rrp: 116360
@@ -14,6 +15,7 @@ products:
       - name: Цвет
         value: золотистый
   - category: Смартфоны
+    supplier_id : 7863
     name: Смартфон Apple iPhone XR 256GB (черный)
     price: 58090
     price_rrp: 61700
@@ -28,6 +30,7 @@ products:
       - name: Цвет
         value: черный
   - category: Аксессуары для смартфонов
+    supplier_id : 1513
     name: Накладка Apple для смартфона Apple iPhone X / XS
     price: 1300
     price_rrp: 2000
@@ -38,7 +41,8 @@ products:
       - name: Цвет
         value: розовый
   - category: Аксессуары для смартфонов
-    name: Накладка Apple для смартфона Apple iPhone 7/8
+    supplier_id : 5735
+    name: Накладка Apple для смартфона Apple iPhone 7 / 8
     price: 1369
     price_rrp: 2450
     qty: 33
@@ -48,6 +52,7 @@ products:
       - name: Цвет
         value: красный
   - category: Аксессуары для смартфонов
+    supplier_id : 4345
     name: Беспроводная гарнитура Xiaomi Mi Bluetooth Headset mini
     price: 1000
     price_rrp: 1499
