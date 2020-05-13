@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'qinspect.middleware.QueryInspectMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -54,6 +55,30 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, "sql.log"),
+        }
+    },
+    'loggers': {
+        'qinspect': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+
+QUERY_INSPECT_ENABLED = True
+QUERY_INSPECT_LOG_QUERIES = True
+QUERY_INSPECT_LOG_TRACEBACKS = True
 
 ROOT_URLCONF = 'python_graduate.urls'
 
@@ -154,6 +179,11 @@ DJOSER = {
     'PASSWORD_RESET_CONFIRM_URL': 'password-reset/{uid}/{token}/',
     'USERNAME_RESET_CONFIRM_URL': 'username-reset/{uid}/{token}/',
 }
+
+# Celery settings
+
+CELERY_BROKER_URL = 'redis://'
+CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 3600}
 
 try:
     from .settings_local import *

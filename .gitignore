@@ -3,3 +3,4 @@
 __pycache__/
 *.yml
 settings_local.py
+*.log

@@ -1,6 +1,6 @@
 from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
-from django.db import models
+from django.db import models, transaction
 
 
 class UserManager(BaseUserManager):
@@ -31,9 +31,11 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     SUPPLIER = 'supplier'
     BUYER = 'buyer'
+    STAFF = 'staff'
     USER_KIND = (
         (SUPPLIER, 'Supplier'),
         (BUYER, 'Buyer'),
+        (STAFF, 'Staff'),
     )
 
     full_name = models.CharField(
@@ -76,8 +78,29 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_buyer(self):
         return self.kind == self.BUYER
 
+    @property
+    def is_staff(self):
+        return True if self.kind == self.STAFF or self.is_superuser else False
+
     class Meta:
         db_table = 'users'
+
+
+class Contact(models.Model):
+    phone = models.CharField(
+        max_length=32,
+    )
+    address = models.CharField(
+        max_length=100,
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='contacts',
+    )
+
+    class Meta:
+        db_table = 'contacts'
 
 
 class Shop(models.Model):
@@ -234,6 +257,12 @@ class Order(models.Model):
     status = models.CharField(
         max_length=50,
         choices=STATUS_CHOICES,
+        default=NEW,
+    )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.CASCADE,
+        related_name='+',
     )
 
     def __str__(self):
@@ -263,38 +292,6 @@ class OrderItem(models.Model):
         db_table = 'order_items'
 
 
-class Contact(models.Model):
-    ADDRESS = 'address'
-    PHONE = 'phone'
-    TYPE_CHOICES = (
-        (
-            PHONE, 'Phone number'
-        ),
-        (
-            ADDRESS, 'Address'
-        )
-    )
-
-    type = models.CharField(
-        max_length=50,
-        choices=TYPE_CHOICES,
-    )
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='contacts',
-    )
-    value = models.CharField(
-        max_length=500,
-    )
-
-    def __str__(self):
-        return f'{self.type} {self.value}'
-
-    class Meta:
-        db_table = 'contacts'
-
-
 class Cart(models.Model):
     user = models.OneToOneField(
         User,
@@ -302,9 +299,30 @@ class Cart(models.Model):
         related_name='cart',
         unique=True,
     )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+    )
 
     def __str__(self):
         return f'{self.user} shopping cart'
+
+    @transaction.atomic()
+    def checkout(self):
+        order = Order.objects.create(user=self.user, contact=self.contact)
+        items = [OrderItem(
+            order=order, product=item.product, qty=item.qty)
+            for item in self.items.all()]
+
+        OrderItem.objects.bulk_create(items)
+
+        self.items.all().delete()
+        self.contact = None
+        self.save(update_fields=['contact'])
+
+        return order
 
     class Meta:
         db_table = 'carts'
@@ -328,7 +346,7 @@ class CartItem(models.Model):
         return f'{self.product.product.name} in cart'
 
     class Meta:
-        db_table = 'cart_products'
+        db_table = 'cart_items'
         constraints = [models.UniqueConstraint(
             fields=('cart', 'product'), name='unique_cart_item'
         )]
