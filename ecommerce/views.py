@@ -4,6 +4,7 @@ import requests
 import yaml
 from django.db.models import Q
 from requests.exceptions import RequestException
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView, GenericAPIView
 from rest_framework.parsers import FileUploadParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
@@ -16,58 +17,130 @@ from yaml.error import YAMLError
 
 from .exceptions import ResourceUnavailableError, YAMLParserError, URLError, InvalidDataError
 from .forms import PriceListURLForm
-from .models import Shop, Product, Cart, CartItem
+from .models import Shop, Product, Cart, CartItem, Order, Contact
 from .permissions import IsSellerOrReadOnly, IsShopManagerOrReadOnly, IsBuyer, IsCartOwner, \
     IsItemOwner
 from .serializers import PriceListSerializer, ShopSerializer, ProductListSerializer, \
-    ProductDetailSerializer, CartSerializer, CartItemSerializer
+    ProductDetailSerializer, CartSerializer, CartItemSerializer, OrderListSerializer, \
+    ContactSerializer, OrderDetailSerializer
+from .tasks import send_order_confirmation
+
+
+class OrderDetailView(RetrieveAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderDetailSerializer
+
+
+class OrderListView(ListAPIView):
+    serializer_class = OrderListSerializer
+
+    def get_queryset(self):
+        qs = Order.objects.all()
+
+        if self.request.user.is_staff:
+            return qs
+        elif self.request.user.is_supplier:
+            return self.filter_for_supplier(qs)
+        else:
+            return self.filter_for_buyer(qs)
+
+    def filter_for_supplier(self, qs):
+        if not hasattr(self.request.user, 'shop'):
+            raise ValidationError(detail='Supplier must have a registered shop',
+                                  code='shop is none')
+
+        return qs.filter(items__product__shop=self.request.user.shop)
+
+    def filter_for_buyer(self, qs):
+        return qs.filter(user=self.request.user)
+
+
+class CheckoutView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsCartOwner]
+    queryset = Cart.objects.all().select_related('user')
+    serializer_class = CartSerializer
+    lookup_url_kwarg = 'cart_id'
+
+    def post(self, request, *args, **kwargs):
+        return self.checkout()
+
+    def checkout(self):
+        cart = self.get_object()
+
+        if not cart.contact:
+            raise ValidationError(
+                'Contact field must be set in order to proceed with the checkout',
+                code='contact is missing'
+            )
+
+        order = cart.checkout()
+        send_order_confirmation.delay(order.id, order.user.email)
+
+        serializer = OrderDetailSerializer(instance=order)
+        headers = self.get_headers(order)
+        return Response(data=serializer.data, status=HTTP_201_CREATED, headers=headers)
+
+    def get_headers(self, order):
+        return {'Location': reverse_lazy('order-detail', args=[order.id], request=self.request)}
+
+
+class ContactView(ModelViewSet):
+    queryset = Contact.objects.all()
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContactSerializer
+
+    def get_success_headers(self, data):
+        return {'Location': reverse_lazy('contact-detail', args=[data['id']], request=self.request)}
 
 
 class CartItemView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsItemOwner]
-    queryset = CartItem.objects.all()
+    queryset = CartItem.objects.all().prefetch_related('cart__user')
+    serializer_class = CartItemSerializer
+    lookup_url_kwarg = 'item_id'
 
     def patch(self, request, *args, **kwargs):
-        return self.update_cart_item(request)
-
-    def delete(self, request, *args, **kwargs):
-        return self.delete_cart_item()
-
-    def update_cart_item(self, request):
-        serializer = CartItemSerializer(data=request.data, instance=self.get_object(), partial=True)
+        serializer = self.get_serializer(
+            data=request.data, instance=self.get_object(), partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
 
-    def delete_cart_item(self):
+    def delete(self, request, *args, **kwargs):
         self.get_object().delete()
         return Response(status=HTTP_204_NO_CONTENT)
+
+    def post(self, request, *args, **kwargs):
+        request.data['cart'] = kwargs['cart_id']
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save()
+        headers = self.get_headers(item)
+        return Response(serializer.data, headers=headers, status=HTTP_201_CREATED)
+
+    def get_headers(self, item):
+        return {'Location': reverse_lazy('item-detail',
+                                         kwargs={'cart_id': self.kwargs['cart_id'],
+                                                 'item_id': item.id}, request=self.request)}
 
 
 class CartView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsCartOwner]
-    queryset = Cart.objects.all()
+    queryset = Cart.objects.all().select_related('user')
+    serializer_class = CartSerializer
+    lookup_field = 'pk'
+    lookup_url_kwarg = 'cart_id'
 
     def get(self, request, *args, **kwargs):
-        serializer = CartSerializer(self.get_object())
+        serializer = self.get_serializer(self.get_object())
         return Response(serializer.data)
 
-    def post(self, request, *args, **kwargs):
-        return self.create_item(request)
-
-    def create_item(self, request):
-        self.set_cart(request)
-        serializer = CartItemSerializer(data=request.data)
+    def patch(self, request, *args, **kwargs):
+        serializer = \
+            self.get_serializer(data=request.data, instance=self.get_object(), partial=True)
         serializer.is_valid(raise_exception=True)
-        item = serializer.save()
-        headers = self.get_headers(request, item)
-        return Response(serializer.data, headers=headers, status=HTTP_201_CREATED)
-
-    def set_cart(self, request):
-        request.data['cart'] = self.get_object().id
-
-    def get_headers(self, request, item):
-        return {'Location': reverse_lazy('cart-item', args=[item.id], request=request)}
+        serializer.save()
+        return Response(serializer.data)
 
 
 class CreateCartView(GenericAPIView):
@@ -79,36 +152,36 @@ class CreateCartView(GenericAPIView):
         return self.create_cart(request)
 
     def create_cart(self, request):
-        self.set_user(request)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         cart = serializer.save()
         return Response(self.get_response_data(cart),
-                        headers=self.get_headers(request, cart),
+                        headers=self.get_headers(cart),
                         status=HTTP_201_CREATED)
 
-    def set_user(self, request):
-        request.data['user'] = self.request.user.id
-
-    def get_headers(self, request, cart):
-        return {'Location': reverse_lazy('cart', args=[cart.id], request=request)}
+    def get_headers(self, cart):
+        return {'Location': reverse_lazy('cart', args=[cart.id], request=self.request)}
 
     def get_response_data(self, cart):
         return {"cart_id": cart.id}
 
 
 class ProductDetailView(RetrieveAPIView):
-    queryset = Product.objects.filter(Q(detail__shop__active=True), Q(detail__available=True))
+    queryset = Product.objects. \
+        filter(Q(detail__shop__active=True), Q(detail__available=True)). \
+        prefetch_related('detail__parameters__parameter')
     serializer_class = ProductDetailSerializer
 
 
 class ProductListView(ListAPIView):
-    queryset = Product.objects.filter(Q(detail__shop__active=True), Q(detail__available=True))
+    queryset = Product.objects. \
+        filter(Q(detail__shop__active=True), Q(detail__available=True)). \
+        select_related('category')
     serializer_class = ProductListSerializer
 
 
 class ShopView(ModelViewSet):
-    queryset = Shop.objects.all()
+    queryset = Shop.objects.all().select_related('manager')
     permission_classes = [IsAuthenticated, IsSellerOrReadOnly, IsShopManagerOrReadOnly]
     serializer_class = ShopSerializer
 

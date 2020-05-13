@@ -1,9 +1,40 @@
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import Q, Sum
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
 from ecommerce.models import Category, ProductParameter, Parameter, Product, ProductDetail, Shop, \
-    Cart, CartItem
+    Cart, CartItem, Order, OrderItem, Contact
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product', 'qty']
+
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True)
+    total = serializers.SerializerMethodField()
+
+    def get_total(self, obj):
+        return obj.items.aggregate(total=Sum('product__price'))['total']
+
+    class Meta:
+        model = Order
+        fields = '__all__'
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ('id', 'created', 'status', 'user')
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = '__all__'
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -116,15 +147,16 @@ class PriceListSerializer(serializers.Serializer):
         empty_parameters = Parameter.objects.filter(product_parameters__isnull=True)
         empty_parameters.delete()
 
+    @transaction.atomic()
     def create(self, validated_data):
         self.clean_before()
 
         products = validated_data.get('products')
 
         if products is not None:
-            for product in validated_data['products']:
-                dealer_id, category, name, price, price_rrp, qty = self.get_product_data(product)
-                parameters = product['parameters']
+            for product in products:
+                dealer_id, category, name, price, price_rrp, qty, parameters = \
+                    self.get_product_data(product)
 
                 self.create_item(dealer_id, category, name, price, price_rrp, qty, parameters)
                 self.updated += 1
@@ -166,12 +198,17 @@ class PriceListSerializer(serializers.Serializer):
         return product_detail
 
     def create_parameters(self, product_detail, parameters):
+        new_parameters = []
+
         for parameter in parameters:
             name, value = self.get_parameter_data(parameter)
             parameter, _ = Parameter.objects.get_or_create(name=name)
-            ProductParameter.objects.create(
+            product_parameter = ProductParameter(
                 parameter=parameter, product_detail=product_detail, value=value,
             )
+            new_parameters.append(product_parameter)
+
+        ProductParameter.objects.bulk_create(new_parameters)
 
     @staticmethod
     def get_product_data(product):
@@ -180,7 +217,8 @@ class PriceListSerializer(serializers.Serializer):
                product['name'], \
                product['price'], \
                product['price_rrp'], \
-               product['qty']
+               product['qty'], \
+               product['parameters']
 
     @staticmethod
     def get_parameter_data(parameter):
