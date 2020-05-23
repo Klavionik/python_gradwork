@@ -22,10 +22,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = ''
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = int(os.getenv('DJANGO_DEBUG', 1))
 
 ALLOWED_HOSTS = []
 
@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'rest_framework',
     'rest_framework_simplejwt',
     'djoser',
@@ -55,30 +56,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, "sql.log"),
-        }
-    },
-    'loggers': {
-        'qinspect': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-    },
-}
-
-QUERY_INSPECT_ENABLED = True
-QUERY_INSPECT_LOG_QUERIES = True
-QUERY_INSPECT_LOG_TRACEBACKS = True
 
 ROOT_URLCONF = 'python_graduate.urls'
 
@@ -106,8 +83,12 @@ WSGI_APPLICATION = 'python_graduate.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': os.getenv('DB'),
+        'HOST': 'db',
+        'PORT': 5432,
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD')
     }
 }
 
@@ -164,12 +145,11 @@ REST_FRAMEWORK = {
 
 # JWT settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
-    'AUTH_HEADER_TYPES': ('JWT',),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=30),
 }
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Djoser settings
 DJOSER = {
@@ -182,20 +162,31 @@ DJOSER = {
 
 # Celery settings
 
-CELERY_BROKER_URL = 'redis://'
+CELERY_BROKER_URL = 'redis://redis:6379/0'
 CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout': 3600}
-
-try:
-    from .settings_local import *
-except ImportError:
-    pass
+CELERY_RESULT_BACKEND = 'redis://redis:6379/1'
 
 if DEBUG:
-    FIXTURES_URL = '/fixtures/'
-    FIXTURES_DIR = os.path.join(BASE_DIR, 'ecommerce', 'fixtures')
+    ALLOWED_HOSTS = ['*']
 
-    SIMPLE_JWT = {
-        'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
-        'REFRESH_TOKEN_LIFETIME': timedelta(hours=30),
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'file': {
+                'level': 'DEBUG',
+                'class': 'logging.FileHandler',
+                'filename': os.path.join(BASE_DIR, "sql.log"),
+            }
+        },
+        'loggers': {
+            'qinspect': {
+                'handlers': ['file'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
+        },
     }
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    QUERY_INSPECT_ENABLED = True
+    QUERY_INSPECT_LOG_QUERIES = True
+    QUERY_INSPECT_LOG_TRACEBACKS = True

@@ -2,7 +2,9 @@ from tempfile import TemporaryFile
 
 import requests
 import yaml
+from django.core.management import call_command
 from django.db.models import Q
+from django.http import HttpResponse
 from requests.exceptions import RequestException
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView, GenericAPIView
@@ -15,20 +17,20 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from yaml.error import YAMLError
 
-from .exceptions import ResourceUnavailableError, YAMLParserError, URLError, InvalidDataError
-from .forms import PriceListURLForm
+from .exceptions import ResourceUnavailableError, YAMLParserError, InvalidDataError
 from .models import Shop, Product, Cart, CartItem, Order, Contact
 from .permissions import IsSellerOrReadOnly, IsShopManagerOrReadOnly, IsBuyer, IsCartOwner, \
-    IsItemOwner
+    IsItemOwner, IsOrderOwnerOrAdmin
 from .serializers import PriceListSerializer, ShopSerializer, ProductListSerializer, \
     ProductDetailSerializer, CartSerializer, CartItemSerializer, OrderListSerializer, \
-    ContactSerializer, OrderDetailSerializer
+    ContactSerializer, OrderDetailSerializer, PriceListURLSerializer
 from .tasks import send_order_confirmation
 
 
 class OrderDetailView(RetrieveAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderDetailSerializer
+    permission_classes = [IsAuthenticated, IsOrderOwnerOrAdmin]
 
 
 class OrderListView(ListAPIView):
@@ -162,7 +164,8 @@ class CreateCartView(GenericAPIView):
     def get_headers(self, cart):
         return {'Location': reverse_lazy('cart', args=[cart.id], request=self.request)}
 
-    def get_response_data(self, cart):
+    @staticmethod
+    def get_response_data(cart):
         return {"cart_id": cart.id}
 
 
@@ -195,19 +198,22 @@ class PriceListUpdateView(APIView):
 
     parser_classes = [JSONParser, YAMLUploadParser]
     permission_classes = [IsAuthenticated, IsSellerOrReadOnly]
-
-    form = PriceListURLForm
     serializer_class = PriceListSerializer
     success_message = "Price list updated: %s products"
 
-    def get_url(self):
-        form = self.form(self.request.data, shop_url=self.request.user.shop.url)
-
-        if form.is_valid():
-            source = form.cleaned_data['url']
-            return source
+    def post(self, request, *args, **kwargs):
+        if self.request.FILES:
+            return self.update_from_file()
         else:
-            raise URLError()
+            return self.update_from_url()
+
+    def get_url(self):
+        serializer = PriceListURLSerializer(
+            data=self.request.data,
+            shop_url=self.request.user.shop.url
+        )
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data['url']
 
     @staticmethod
     def get_content(source):
@@ -238,12 +244,6 @@ class PriceListUpdateView(APIView):
         except RequestException:
             raise ResourceUnavailableError()
 
-    def post(self, request, *args, **kwargs):
-        if self.request.FILES:
-            return self.update_from_file()
-        else:
-            return self.update_from_url()
-
     def update_from_url(self):
         source = self.get_url()
         return self.update_prices(self.get_price_list(source))
@@ -266,3 +266,8 @@ class PriceListUpdateView(APIView):
     def success(self, updated):
         msg = {"response": self.success_message % updated}
         return Response(data=msg)
+
+
+def dbflush(request):
+    call_command('flush', verbosity=0, interactive=False)
+    return HttpResponse(status=204)

@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+
+  server:
+    image: library/nginx:alpine
+    ports:
+      - 5555:80
+    volumes:
+      - ./config/server:/etc/nginx/conf.d
+      - ./ecommerce/fixtures:/var/www/fixtures
+    depends_on:
+      - app
+    networks:
+      - nginx_network
+
+  app:
+    build: .
+    command: ["supervisord", "-c", "config/app/supervisord.conf"]
+    env_file:
+      - config/app/.env
+    volumes:
+      - .:/var/code
+    networks:
+      - nginx_network
+      - db_network
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: library/postgres:alpine
+    env_file:
+      - config/db/.env
+    volumes:
+      - db_volume:/var/lib/postgresql/data
+    networks:
+      - db_network
+
+  redis:
+    image: library/redis:alpine
+    networks:
+      - db_network
+
+volumes:
+  db_volume:
+
+networks:
+  nginx_network:
+    driver: bridge
+  db_network:
+    driver: bridge

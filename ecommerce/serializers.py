@@ -223,3 +223,16 @@ class PriceListSerializer(serializers.Serializer):
     @staticmethod
     def get_parameter_data(parameter):
         return parameter['name'], parameter['value']
+
+
+class PriceListURLSerializer(serializers.Serializer):
+    url = serializers.URLField()
+
+    def __init__(self, *args, **kwargs):
+        self.shop_url = kwargs.pop('shop_url')
+        super().__init__(*args, **kwargs)
+
+    def validate_url(self, value):
+        if self.shop_url not in value:
+            raise serializers.ValidationError("Price list must be uploaded from the shop's URL")
+        return value

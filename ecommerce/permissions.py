@@ -1,5 +1,5 @@
 from rest_framework import permissions
-
+from rest_framework.exceptions import ValidationError
 
 class IsSellerOrReadOnly(permissions.BasePermission):
     message = 'This action is allowed only for suppliers.'
@@ -45,3 +45,26 @@ class IsItemOwner(permissions.BasePermission):
             return True
         return False
 
+
+class IsOrderOwnerOrAdmin(permissions.BasePermission):
+    message = "This action is allowed only for an order owner"
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_buyer:
+            return self.test_buyer(request, obj)
+        if request.user.is_supplier:
+            return self.test_supplier(request, obj)
+        if request.user.is_superuser:
+            return True
+
+    @staticmethod
+    def test_buyer(request, obj):
+        return request.user == obj.user
+
+    @staticmethod
+    def test_supplier(request, obj):
+        if not hasattr(request.user, 'shop'):
+            raise ValidationError(detail='Supplier must have a registered shop',
+                                  code='shop is none')
+
+        return obj.items.filter(product__shop=request.user.shop).exists()
