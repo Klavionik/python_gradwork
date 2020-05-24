@@ -30,4 +30,4 @@ $ docker-compose exec app python manage.py migrate
 
 ### Использование
 
-[Документация и демонстрационные запросы Postman](https://documenter.getpostman.com/view/9813544/Szt8eVLZ?version=latest)
+[Документация и демонстрационные запросы Postman](https://documenter.getpostman.com/view/9813544/Szt8eppQ)
