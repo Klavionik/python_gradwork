@@ -1,5 +1,4 @@
 *.sqlite3
 .idea
-__pycache__
-prices
+__pycache__/
 *.log

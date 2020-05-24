@@ -1,80 +1,66 @@
-# `products` replaced with `items` to raise serializer error
+# `categories` replaced with `items` to raise serializer error
 items:
-  - category:
-      name: Смартфоны
-    product:
-      name: Смартфон Apple iPhone XS Max 512GB (золотистый)
-    product_info:
-      price: 106000
-      price_rrp: 116360
-      qty: 10
+- name: Смартфоны
+  products:
+  - name: Смартфон Apple iPhone XS Max 512GB (золотистый)
     parameters:
-      - name: Диагональ (дюйм)
-        value: 6.5
-      - name: Разрешение (пикс)
-        value: 2688x1242
-      - name: Встроенная память (Гб)
-        value: 512
-      - name: Цвет
-        value: золотистый
-  - category:
-      name: Смартфоны
-    product:
-      name: Смартфон Apple iPhone XR 256GB (черный)
-    product_info:
-      price: 58090
-      price_rrp: 61700
-      qty: 3
+    - name: Диагональ (дюйм)
+      value: 6.5
+    - name: Разрешение (пикс)
+      value: 2688x1242
+    - name: Встроенная память (Гб)
+      value: 512
+    - name: Цвет
+      value: золотистый
+    price: 110000
+    price_rrp: 116990
+    qty: 14
+    supplier_id: 8632
+  - name: Смартфон Apple iPhone XR 256GB (черный)
     parameters:
-      - name: Диагональ (дюйм)
-        value: 6.1
-      - name: Разрешение (пикс)
-        value: 1792x828
-      - name: Встроенная память (Гб)
-        value: 256
-      - name: Цвет
-        value: черный
-  - category:
-      name: Аксессуары для смартфонов
-    product:
-      name: Накладка Apple для смартфона Apple iPhone X / XS
-    product_info:
-      price: 1300
-      price_rrp: 2000
-      qty: 9
+    - name: Диагональ (дюйм)
+      value: 6.1
+    - name: Разрешение (пикс)
+      value: 1792x828
+    - name: Встроенная память (Гб)
+      value: 256
+    - name: Цвет
+      value: черный
+    price: 65000
+    price_rrp: 69990
+    qty: 12
+    supplier_id: 7863
+- name: Аксессуары для смартфонов
+  products:
+  - name: Накладка Apple для смартфона Apple iPhone X / XS
     parameters:
-      - name: Материал
-        value: силикон
-      - name: Цвет
-        value: розовый
-  - category:
-      name: Аксессуары для смартфонов
-    product:
-      name: Накладка Apple для смартфона Apple iPhone 7/8
-    product_info:
-      price: 1369
-      price_rrp: 2450
-      qty: 33
+    - name: Материал
+      value: силикон
+    - name: Цвет
+      value: розовый
+    price: 1800
+    price_rrp: 2450
+    qty: 27
+    supplier_id: 1513
+  - name: Накладка Apple для смартфона Apple iPhone 7 / 8
     parameters:
-      - name: Материал
-        value: силикон
-      - name: Цвет
-        value: красный
-  - category:
-      name: Аксессуары для смартфонов
-    product:
-      name: Беспроводная гарнитура Xiaomi Mi Bluetooth Headset mini
-    product_info:
-      price: 1000
-      price_rrp: 1499
-      qty: 3
+    - name: Материал
+      value: силикон
+    - name: Цвет
+      value: красный
+    price: 1780
+    price_rrp: 2780
+    qty: 49
+    supplier_id: 5735
+  - name: Беспроводная гарнитура Xiaomi Mi Bluetooth Headset mini
     parameters:
-      - name: Версия Bluetooth
-        value: 4.1
-      - name: Особенности
-        value: защита IPX4
-      - name: Цвет
-        value: черный
-
-
-
+    - name: Версия Bluetooth
+      value: 4.1
+    - name: Особенности
+      value: защита IPX4
+    - name: Цвет
+      value: белый
+    price: 999
+    price_rrp: 1390
+    qty: 8
+    supplier_id: 4345

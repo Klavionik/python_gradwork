@@ -121,7 +121,6 @@ class PriceListItemSerializer(serializers.Serializer):
         value = serializers.CharField(max_length=100)
 
     supplier_id = serializers.IntegerField()
-    category = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
     price = serializers.IntegerField()
     price_rrp = serializers.IntegerField()
@@ -129,8 +128,13 @@ class PriceListItemSerializer(serializers.Serializer):
     parameters = ParameterSerializer(many=True)
 
 
+class PriceListCategorySerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    products = PriceListItemSerializer(many=True)
+
+
 class PriceListSerializer(serializers.Serializer):
-    products = PriceListItemSerializer(many=True, allow_null=True)
+    categories = PriceListCategorySerializer(many=True, allow_null=True)
 
     def __init__(self, *args, **kwargs):
         self.shop = kwargs.pop('shop', None)
@@ -151,34 +155,35 @@ class PriceListSerializer(serializers.Serializer):
     def create(self, validated_data):
         self.clean_before()
 
-        products = validated_data.get('products')
+        categories = validated_data.get('categories')
 
-        if products is not None:
-            for product in products:
-                dealer_id, category, name, price, price_rrp, qty, parameters = \
-                    self.get_product_data(product)
-
-                self.create_item(dealer_id, category, name, price, price_rrp, qty, parameters)
-                self.updated += 1
-
+        if categories is not None:
+            self.import_data(categories)
             self.clean_after()
 
         return self.updated
 
-    def create_item(self, dealer_id, category, name, price, price_rrp, qty, parameters):
-        category = self.create_category(category)
-        product, product_detail = \
-            self.create_product(dealer_id, name, category, price, price_rrp, qty)
-        self.create_parameters(product_detail, parameters)
+    def import_data(self, categories):
+        for category in categories:
+            category_obj = self.create_category(category['name'])
+            self.create_products(category['products'], category_obj)
+
+    def create_products(self, products, product_category):
+        for product in products:
+            product, product_detail = self.create_product(product, product_category)
+            self.create_parameters(product_detail, product['parameters'])
+
+            self.updated += 1
 
     def create_category(self, name):
         category_obj, _ = Category.objects.get_or_create(name=name)
         category_obj.shops.add(self.shop)
         return category_obj
 
-    def create_product(self, dealer_id, name, category, price, price_rrp, qty):
-        product, _ = Product.objects.get_or_create(name=name, category=category)
-        product_detail = self.create_product_detail(dealer_id, product, price, price_rrp, qty)
+    def create_product(self, product, category):
+        supplier_id, name, price, price_rrp, qty = self.get_product_data(product)
+        product_obj, _ = Product.objects.get_or_create(name=name, category=category)
+        product_detail = self.create_product_detail(supplier_id, product_obj, price, price_rrp, qty)
         return product, product_detail
 
     def create_product_detail(self, supplier_id, product, price, price_rrp, qty):
@@ -213,12 +218,10 @@ class PriceListSerializer(serializers.Serializer):
     @staticmethod
     def get_product_data(product):
         return product['supplier_id'], \
-               product['category'], \
                product['name'], \
                product['price'], \
                product['price_rrp'], \
-               product['qty'], \
-               product['parameters']
+               product['qty']
 
     @staticmethod
     def get_parameter_data(parameter):
