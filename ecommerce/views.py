@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from yaml.error import YAMLError
 
-from .exceptions import ResourceUnavailableError, YAMLParserError, InvalidDataError
+from .exceptions import ResourceUnavailableError, YAMLParserError
 from .models import Shop, Product, Cart, CartItem, Order, Contact
 from .permissions import IsSellerOrReadOnly, IsShopManagerOrReadOnly, IsBuyer, IsCartOwner, \
     IsItemOwner, IsOrderOwnerOrAdmin
@@ -215,53 +215,52 @@ class PriceListUpdateView(APIView):
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data['url']
 
-    @staticmethod
-    def get_content(source):
+    def get_content(self, source):
         try:
             with TemporaryFile() as f:
                 for chunk in source:
                     f.write(chunk)
                 f.seek(0)
 
-                price_list = yaml.safe_load(f.read())
-
-                return price_list
+                return self.read_price_list(f.read())
         except YAMLError:
             raise YAMLParserError()
 
-    def get_price_list(self, source):
+    def fetch_price_list(self, source):
         try:
-            content = requests.get(source, stream=True)
+            stream = requests.get(source, stream=True)
 
-            if content.status_code == 200:
-                price_list = self.get_content(content.iter_content(
+            if stream.status_code == 200:
+                content = self.get_content(stream.iter_content(
                     chunk_size=512, decode_unicode=True)
                 )
 
-                return price_list
+                return content
             else:
-                content.raise_for_status()
+                stream.raise_for_status()
         except RequestException:
             raise ResourceUnavailableError()
 
+    @staticmethod
+    def read_price_list(content):
+        return yaml.safe_load(content)
+
     def update_from_url(self):
         source = self.get_url()
-        return self.update_prices(self.get_price_list(source))
+        return self.update_prices(self.fetch_price_list(source))
 
     def update_from_file(self):
         file = self.request.FILES['file']
-        return self.update_prices(self.get_content(file))
+        return self.update_prices(self.read_price_list(file))
 
     def update_prices(self, price_list):
         serializer = self.serializer_class(
             data=price_list,
             shop=self.request.user.shop)
 
-        if serializer.is_valid():
-            updated = serializer.save()
-            return self.success(updated)
-        else:
-            raise InvalidDataError()
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save()
+        return self.success(updated)
 
     def success(self, updated):
         msg = {"response": self.success_message % updated}

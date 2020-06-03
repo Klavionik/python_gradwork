@@ -1,6 +1,7 @@
 from rest_framework import permissions
 from rest_framework.exceptions import ValidationError
 
+
 class IsSellerOrReadOnly(permissions.BasePermission):
     message = 'This action is allowed only for suppliers.'
 

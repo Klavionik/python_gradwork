@@ -12,6 +12,12 @@
 7. Реверс-прокси сервера Nginx
 
 ### Запуск
+
+Тесты:
+```
+./manage.py test --settings python_graduate.test_settings
+```
+
 Для запуска всего этого цирка используется Docker Compose.
 
 ```

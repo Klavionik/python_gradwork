@@ -19,8 +19,3 @@ class URLError(BaseClientError):
 class ResourceUnavailableError(BaseClientError):
     default_detail = 'Unable to fetch a resource, check if resource is available.'
     default_code = 'Resource unavailable'
-
-
-class InvalidDataError(BaseClientError):
-    default_detail = 'Price list contains incorrect data.'
-    default_code = 'Price list validation error'
