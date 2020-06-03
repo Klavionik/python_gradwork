@@ -1,12 +1,12 @@
 import os
 
-from rest_framework.test import APITestCase, APIRequestFactory
+from rest_framework.test import APITestCase, APIRequestFactory, APIClient
 from rest_framework.reverse import reverse
+from rest_framework_simplejwt.tokens import AccessToken
 from ecommerce.views import PriceListUpdateView
 from ecommerce.serializers import PriceListSerializer
-from ecommerce.models import User, Shop, Product, Cart
+from ecommerce.models import User, Shop, Product, Cart, ProductDetail
 from django.conf import settings
-import json
 import yaml
 
 buyer_data = dict(
@@ -39,15 +39,6 @@ def make_users():
     shop = Shop.objects.create(**shop_data)
     buyer = User.objects.create_user(**buyer_data)
     return supplier, buyer, shop
-
-
-def get_access_token(user, client):
-    path = reverse('jwt-create')
-    payload = json.dumps({'email': user['email'], 'password': user['password']})
-    token_response = client.post(path, payload, content_type='application/json')
-    assert token_response.status_code == 200, \
-        f'Token not acquired: {token_response.status_code} {token_response.content.decode("utf8")}'
-    return token_response.json()['access']
 
 
 def get_fixture(fixture_name):
@@ -83,10 +74,11 @@ class TestPriceListUpdateView(APITestCase):
     def setUpTestData(cls):
         cls.supplier, cls.buyer, cls.shop = make_users()
         cls.path = reverse('pricelist-update')
+        cls.supplier_token = AccessToken.for_user(cls.supplier)
+        cls.buyer_token = AccessToken.for_user(cls.buyer)
 
     def test_price_list_from_file(self):
-        token = get_access_token(supplier_data, self.client)
-        request = make_price_list_request('price1.yml', token, self.path)
+        request = make_price_list_request('price1.yml', self.supplier_token, self.path)
         response = PriceListUpdateView.as_view()(request)
         products_updated = Product.objects.filter(detail__shop=self.shop).count()
 
@@ -94,19 +86,13 @@ class TestPriceListUpdateView(APITestCase):
         self.assertEqual(products_updated, 5)
 
     def test_only_supplier_allowed(self):
-        token = get_access_token(buyer_data, self.client)
-        headers = dict(
-            HTTP_AUTHORIZATION=f'Bearer {token}',
-        )
-        request = APIRequestFactory().post(
-            self.path, **headers)
+        request = make_price_list_request('price1.yml', self.buyer_token, self.path)
         response = PriceListUpdateView.as_view()(request)
 
         self.assertEqual(response.status_code, 403)
 
     def test_invalid_price_list_declined(self):
-        token = get_access_token(supplier_data, self.client)
-        request = make_price_list_request('price_invalid.yml', token, self.path)
+        request = make_price_list_request('price_invalid.yml', self.supplier_token, self.path)
         response = PriceListUpdateView.as_view()(request)
 
         self.assertEqual(response.status_code, 400)
@@ -120,18 +106,18 @@ class TestProductViews(APITestCase):
         load_price_list('price1.yml', cls.shop)
         cls.path_list = reverse('product-list')
         cls.path_detail = reverse('product-detail', args=[1])
+        cls.buyer_token = AccessToken.for_user(cls.buyer)
+        cls.client = APIClient().credentials(HTTP_AUTHORIZATION=f'Bearer {cls.buyer_token}')
 
     def test_retrieve_product_list(self):
-        token = get_access_token(buyer_data, self.client)
-        response = self.client.get(self.path_list, HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.get(self.path_list)
         products = Product.objects.filter(detail__shop=self.shop).count()
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(products, len(response.json()))
 
     def test_retrieve_product_detail(self):
-        token = get_access_token(buyer_data, self.client)
-        response = self.client.get(self.path_detail, HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.get(self.path_detail)
         product = Product.objects.get(id=1)
 
         self.assertEqual(response.status_code, 200)
@@ -139,21 +125,77 @@ class TestProductViews(APITestCase):
         self.assertEqual(response.json()['name'], product.name)
 
 
-class TestCartViews(APITestCase):
+class TestCreateCartView(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
         cls.supplier, cls.buyer, cls.shop = make_users()
         load_price_list('price1.yml', cls.shop)
+        cls.path = reverse('cart-create')
+        cls.buyer_token = AccessToken.for_user(cls.buyer)
+
+    def _pre_setup(self):
+        super()._pre_setup()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.buyer_token}')
 
     def test_create_cart(self):
-        token = get_access_token(buyer_data, self.client)
-        path = reverse('cart-create')
         payload = {'user': self.buyer.id}
-        response = self.client.post(
-            path, payload, format='json', HTTP_AUTHORIZATION=f'Bearer {token}'
-        )
+        response = self.client.post(self.path, payload, format='json')
         cart = Cart.objects.filter(user=self.buyer).exists()
 
         self.assertEqual(response.status_code, 201)
         self.assertTrue(cart)
+
+    def test_only_one_cart_per_buyer(self):
+        cart = Cart.objects.create(user=self.buyer)
+        payload = {'user': self.buyer.id}
+        response = self.client.post(self.path, payload, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.buyer.cart, cart)
+
+
+class TestCartItemsView(APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.supplier, cls.buyer, cls.shop = make_users()
+        load_price_list('price1.yml', cls.shop)
+        cls.cart = Cart.objects.create(user=cls.buyer)
+        cls.cart_path = reverse('cart-items', args=[cls.cart.id])
+        cls.buyer_token = AccessToken.for_user(cls.buyer)
+
+    def _pre_setup(self):
+        super()._pre_setup()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.buyer_token}')
+
+    def test_add_item_to_cart(self):
+        product = ProductDetail.objects.first()
+        payload = {"product": product.id, "qty": 3}
+        response = self.client.post(self.cart_path, payload, format='json')
+
+        item = self.cart.items.filter(product=product)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(item), 1)
+
+    def test_add_few_items_to_cart(self):
+        product1, product2 = ProductDetail.objects.all()[:2]
+        payload1, payload2 = {"product": product1.id, "qty": 3}, {"product": product2.id, "qty": 6}
+        response1 = self.client.post(self.cart_path, payload1, format='json')
+        response2 = self.client.post(self.cart_path, payload2, format='json')
+
+        items = self.cart.items.all()
+
+        self.assertEqual(response1.status_code, 201)
+        self.assertEqual(response2.status_code, 201)
+        self.assertEqual(len(items), 2)
+
+    def test_delete_item_from_cart(self):
+        item_data = {'cart': self.cart, 'product': ProductDetail.objects.first(), 'qty': 3}
+        item = self.cart.items.create(**item_data)
+        path = reverse('item-detail', kwargs={'cart_id': self.cart.id, 'item_id': item.id})
+        response = self.client.delete(path)
+
+        self.assertEqual(response.status_code, 204)
+
