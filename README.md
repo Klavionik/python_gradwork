@@ -15,7 +15,7 @@
 
 Тесты:
 ```
-./manage.py test --settings python_graduate.test_settings
+./manage.py test --settings python_graduate.test_settings --parallel -v 0
 ```
 
 Для запуска всего этого цирка используется Docker Compose.
