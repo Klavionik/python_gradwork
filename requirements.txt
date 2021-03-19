@@ -7,7 +7,7 @@ chardet==3.0.4
 Django==3.0.7
 django-queryinspect==1.1.0
 django-templated-mail==1.1.1
-djangorestframework==3.11.0
+djangorestframework==3.11.2
 djangorestframework-simplejwt==4.4.0
 djoser==2.0.3
 gunicorn==20.0.4
